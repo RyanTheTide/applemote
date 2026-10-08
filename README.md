@@ -45,7 +45,8 @@ applemote calibrate          # only if setup says there are no templates for you
 systemctl --user enable --now applemote
 ```
 
-Log out and back in once if `setup` warns that the key device isn't writable.
+If `setup` warns that keys must go through `/dev/uinput` (common on desktops),
+run `make install-uinput` too. Log out and back in once after either warning.
 
 ## Usage
 

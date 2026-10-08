@@ -4,7 +4,9 @@ BINDIR   := $(PREFIX)/bin
 UNITDIR  := $(HOME)/.config/systemd/user
 UDEVRULE := /etc/udev/rules.d/70-applemote.rules
 
-.PHONY: install uninstall test
+UINPUTRULE := /etc/udev/rules.d/71-applemote-uinput.rules
+
+.PHONY: install install-uinput uninstall test
 
 install:
 	install -d $(LIBDIR)/applemote $(LIBDIR)/templates $(BINDIR) $(UNITDIR)
@@ -21,10 +23,17 @@ install:
 	@echo "Installed. Next:  applemote setup   (then 'applemote calibrate' if setup asks for it)"
 	@echo "                  systemctl --user enable --now applemote"
 
+# Only needed when 'applemote setup' says keys must go through uinput.
+install-uinput:
+	sudo install -m644 contrib/71-applemote-uinput.rules $(UINPUTRULE)
+	sudo udevadm control --reload
+	sudo udevadm trigger --name-match=uinput --action=change
+	@echo "Log out and back in, then: systemctl --user restart applemote"
+
 uninstall:
 	-systemctl --user disable --now applemote
 	rm -rf $(LIBDIR) $(BINDIR)/applemote $(UNITDIR)/applemote.service
-	sudo rm -f $(UDEVRULE)
+	sudo rm -f $(UDEVRULE) $(UINPUTRULE)
 	sudo udevadm control --reload
 	systemctl --user daemon-reload
 	@echo "Config and calibration kept in ~/.config/applemote (remove by hand if unwanted)."

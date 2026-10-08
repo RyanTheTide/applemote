@@ -11,12 +11,14 @@ KNOWN = {("LENOVO", "83DJ"): "lenovo-83dj-alc287-earpods.npz"}
 
 
 def find_card():
+    """First card with a mic jack control; prefer a plugged-in jack, then 'Headset Mic Jack'."""
+    found = []
     for d in sorted(Path("/proc/asound").glob("card[0-9]*")):
         card = d.name[4:]
-        names = re.findall(r"iface=CARD,name='([^']*Mic Jack)'", system.Mixer(card).controls())
-        if names:
-            return card, ("Headset Mic Jack" if "Headset Mic Jack" in names else names[0])
-    return None, None
+        mixer = system.Mixer(card)
+        for name in re.findall(r"iface=CARD,name='([^']*Mic Jack)'", mixer.controls()):
+            found.append((not mixer.jack(name), name != "Headset Mic Jack", card, name))
+    return sorted(found)[0][2:] if found else (None, None)
 
 
 def find_source(card):
@@ -60,7 +62,8 @@ def main(args):
         return 1
     mixer = system.Mixer(card)
     scontrols = mixer.scontrols()
-    boost = next((c for c in ("Headset Mic Boost", "Mic Boost") if c in scontrols), "")
+    boost = next((c for c in (jack.replace(" Jack", " Boost"), "Headset Mic Boost", "Mic Boost")
+                  if c in scontrols), "")
     capture = "Capture" if "Capture" in scontrols else ""
     sources = find_source(card)
     node, key_device = find_key_device(card)
@@ -79,9 +82,11 @@ def main(args):
     print(f"key device      {key_device}" + (f" ({node})" if node else ""))
     print(f"templates       {cfg['templates'] or '(none - run: applemote calibrate)'}")
 
-    target = node or "/dev/uinput"
-    if not os.access(target, os.W_OK):
-        print(f"\n! {target} is not writable: install the udev rule (make install) and log in again.")
+    if node and not os.access(node, os.W_OK):
+        print(f"\n! {node} is not writable: run 'make install' (udev rule) and log in again.")
+    if not node and not os.access("/dev/uinput", os.W_OK):
+        print("\n! This card's jack device has no volume keys, so keys go through /dev/uinput,")
+        print("  which is not writable. Run 'make install-uinput' and log in again.")
     system.save_config(cfg)
     print(f"\nwrote {system.CONFIG_FILE}")
     if not cfg["templates"]:
